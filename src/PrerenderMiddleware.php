@@ -57,6 +57,14 @@ class PrerenderMiddleware
      */
     private $blacklist;
 
+
+    /**
+     * URI whitelist for prerendering pages regardless of the user agent
+     *
+     * @var array
+     */
+    private $whitelistForAllUsers;
+
     /**
      * Base URI to make the prerender requests
      *
@@ -98,6 +106,7 @@ class PrerenderMiddleware
         $this->prerenderToken = $config['prerender_token'];
         $this->whitelist = $config['whitelist'];
         $this->blacklist = $config['blacklist'];
+        $this->whitelistForAllUsers = $config['whitelist_for_all_users'];
     }
 
     /**
@@ -158,6 +167,12 @@ class PrerenderMiddleware
 
         if ($bufferAgent) $isRequestingPrerenderedPage = true;
 
+        if ($this->whitelistForAllUsers
+            && $this->isListed($requestUri, $this->whitelistForAllUsers)
+            && (!$this->blacklist || !$this->isListed($requestUri, $this->blacklist))) {
+            return !str_contains($userAgent, 'https://github.com/prerender/prerender');
+        }
+
         if (!$isRequestingPrerenderedPage) return false;
 
         // only check whitelist if it is not empty
@@ -195,9 +210,9 @@ class PrerenderMiddleware
         if ($this->prerenderToken) {
             $headers['X-Prerender-Token'] = $this->prerenderToken;
         }
-    
+
         $protocol = $request->isSecure() ? 'https' : 'http';
-    
+
         try {
             // Return the Guzzle Response
         $host = $request->getHost();
