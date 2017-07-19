@@ -106,7 +106,7 @@ class PrerenderMiddleware
         $this->prerenderToken = $config['prerender_token'];
         $this->whitelist = $config['whitelist'];
         $this->blacklist = $config['blacklist'];
-        $this->whitelistForAllUsers = $config['whitelist_for_all_users'];
+        $this->whitelistForAllUsers = !empty($config['whitelist_for_all_users']) ? $config['whitelist_for_all_users'] : [];
     }
 
     /**

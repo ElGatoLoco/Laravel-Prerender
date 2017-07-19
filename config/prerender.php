@@ -161,4 +161,15 @@
         'developers.google.com/+/web/snippet',
         'slackbot',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Whitelist For All Users
+    |--------------------------------------------------------------------------
+    |
+    | Serve prerendered page to all users on these paths.
+    |
+    */
+
+    'whitelist_for_all_users' => [],
 ];
