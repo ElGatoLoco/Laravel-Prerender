@@ -27,12 +27,6 @@ class LaravelPrerenderServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/prerender.php' => config_path('prerender.php')
         ], 'config');
-
-        if ($this->app['config']->get('prerender.enable')) {
-            /** @var Kernel $kernel */
-            $kernel = $this->app['Illuminate\Contracts\Http\Kernel'];
-            $kernel->pushMiddleware(PrerenderMiddleware::class);
-        }
     }
 
     /**

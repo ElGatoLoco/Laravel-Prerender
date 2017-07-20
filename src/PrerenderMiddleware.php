@@ -14,6 +14,7 @@ use Symfony\Bridge\PsrHttpMessage\Factory\HttpFoundationFactory;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Redis;
 use QueuePusher\Queue;
+use AuthWrapper\Auth;
 
 class PrerenderMiddleware
 {
@@ -81,6 +82,8 @@ class PrerenderMiddleware
      */
     private $returnSoftHttpCodes;
 
+    private $enabled;
+
     /**
      * Creates a new PrerenderMiddleware instance
      *
@@ -90,6 +93,7 @@ class PrerenderMiddleware
     public function __construct(Application $app, Guzzle $client)
     {
         $this->app = $app;
+        $this->enabled = $this->app['config']->get('prerender.enable');
         $this->returnSoftHttpCodes = $app['config']->get('prerender')['prerender_soft_http_codes'];
 
         if ($this->returnSoftHttpCodes) {
@@ -143,6 +147,10 @@ class PrerenderMiddleware
      */
     private function shouldShowPrerenderedPage($request)
     {
+        if (!$this->enabled || Auth::check()) {
+            return false;
+        }
+
         $userAgent = strtolower($request->server->get('HTTP_USER_AGENT'));
         $bufferAgent = $request->server->get('X-BUFFERBOT');
         $requestUri = $request->getRequestUri();
