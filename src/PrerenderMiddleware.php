@@ -12,6 +12,8 @@ use GuzzleHttp\Client as Guzzle;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Bridge\PsrHttpMessage\Factory\HttpFoundationFactory;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Redis;
+use QueuePusher\Queue;
 
 class PrerenderMiddleware
 {
@@ -121,16 +123,12 @@ class PrerenderMiddleware
     public function handle($request, Closure $next)
     {
         if ($this->shouldShowPrerenderedPage($request)) {
-            $prerenderedResponse = $this->getPrerenderedPageResponse($request);
-
-            if ($prerenderedResponse) {
-                $statusCode = $prerenderedResponse->getStatusCode();
-
-                if (!$this->returnSoftHttpCodes && $statusCode >= 300 && $statusCode < 400) {
-                    return Redirect::to($prerenderedResponse->getHeaders()["Location"][0], $statusCode);
-                }
-
-                return $this->buildSymfonyResponseFromGuzzleResponse($prerenderedResponse);
+            $key = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
+            if (Redis::exists($key)) {
+                return Response::create(Redis::get($key));
+            }
+            else {
+                $this->getPrerenderedPageResponse($request);
             }
         }
 
@@ -210,26 +208,24 @@ class PrerenderMiddleware
         if ($this->prerenderToken) {
             $headers['X-Prerender-Token'] = $this->prerenderToken;
         }
+        $headers = compact('headers');
 
         $protocol = $request->isSecure() ? 'https' : 'http';
-
-        try {
-            // Return the Guzzle Response
         $host = $request->getHost();
-            $path = $request->Path();
-            return $this->client->get($this->prerenderUri . '/' . urlencode($protocol.'://'.$host.'/'.$path), compact('headers'));
-        } catch (RequestException $exception) {
-            if(!$this->returnSoftHttpCodes && !empty($exception->getResponse()) && $exception->getResponse()->getStatusCode() == 404) {
-                \App::abort(404);
+        $path = $request->Path();
+        $url = $this->prerenderUri . '/' . urlencode($protocol.'://'.$host.'/'.$path);
+
+        $returnSoftHttpCodes = $this->returnSoftHttpCodes;
+
+        Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
+            $client = new Guzzle();
+            if (!$returnSoftHttpCodes) {
+                $clientConfig = $client->getConfig();
+                $clientConfig['allow_redirects'] = false;
+                $client = new Guzzle($clientConfig);
             }
-            // In case of an exception, we only throw the exception if we are in debug mode. Otherwise,
-            // we return null and the handle() method will just pass the request to the next middleware
-            // and we do not show a prerendered page.
-            if ($this->app['config']->get('app.debug')) {
-                throw $exception;
-            }
-            return null;
-        }
+            $client->get($url, $headers);
+        });
     }
 
     /**
