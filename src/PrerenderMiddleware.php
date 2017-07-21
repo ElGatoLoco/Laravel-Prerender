@@ -128,6 +128,8 @@ class PrerenderMiddleware
     {
         if ($this->shouldShowPrerenderedPage($request)) {
             $key = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
+            // TODO: all of this is seriously, seriously sloppy work.
+            // Reclaim the right to call yourself a programmer asap
             if (Redis::exists($key)) {
                 return Response::create(Redis::get($key));
             }
