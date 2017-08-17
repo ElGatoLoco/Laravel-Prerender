@@ -73,7 +73,10 @@ class PrerenderMiddleware
      *
      * @var string
      */
-    private $prerenderUri;
+    private $prerenderHost;
+    private $prerenderCrawlerPort;
+    private $prerenderUserPort;
+    private $prerenderPort;
 
     /**
      * Return soft 3xx and 404 HTTP codes
@@ -83,6 +86,12 @@ class PrerenderMiddleware
     private $returnSoftHttpCodes;
 
     private $enabled;
+
+    /**
+     * Flag - is it a crawler accessing the page
+     */
+
+    private $isCrawler;
 
     /**
      * Creates a new PrerenderMiddleware instance
@@ -107,7 +116,9 @@ class PrerenderMiddleware
 
         $config = $app['config']->get('prerender');
 
-        $this->prerenderUri = $config['prerender_url'];
+        $this->prerenderHost = $config['prerender_host'];
+        $this->prerenderCrawlerPort = $config['prerender_crawler_port'];
+        $this->prerenderUserPort = $config['prerender_user_port'];
         $this->crawlerUserAgents = $config['crawler_user_agents'];
         $this->prerenderToken = $config['prerender_token'];
         $this->whitelist = $config['whitelist'];
@@ -126,15 +137,21 @@ class PrerenderMiddleware
      */
     public function handle($request, Closure $next)
     {
+        $this->setPortAndIsCrawlerFlag($request);
+
         if ($this->shouldShowPrerenderedPage($request)) {
             $key = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
-            // TODO: all of this is seriously, seriously sloppy work.
-            // Reclaim the right to call yourself a programmer asap
-            if (Redis::exists($key)) {
+
+            if (!$this->isCrawler && Redis::exists($key)) {
+                // can't serve pages to crawlers directly from cache
+                // because they still have script tags and prerender removes them
                 return Response::create(Redis::get($key));
             }
+            else if ($this->isCrawler) {
+                return $this->getPrerenderedPageResponse($request, true);
+            }
             else {
-                $this->getPrerenderedPageResponse($request);
+                $this->getPrerenderedPageResponse($request, false);
             }
         }
 
@@ -166,11 +183,8 @@ class PrerenderMiddleware
         // prerender if _escaped_fragment_ is in the query string
         if ($request->query->has('_escaped_fragment_')) $isRequestingPrerenderedPage = true;
 
-        // prerender if a crawler is detected
-        foreach ($this->crawlerUserAgents as $crawlerUserAgent) {
-            if (str_contains($userAgent, strtolower($crawlerUserAgent))) {
-                $isRequestingPrerenderedPage = true;
-            }
+        if ($this->isCrawler) {
+            $isRequestingPrerenderedPage = true;
         }
 
         if ($bufferAgent) $isRequestingPrerenderedPage = true;
@@ -210,7 +224,7 @@ class PrerenderMiddleware
      * @param $request
      * @return null|void
      */
-    private function getPrerenderedPageResponse($request)
+    private function getPrerenderedPageResponse($request, $immediately)
     {
         $headers = [
             'User-Agent' => $request->server->get('HTTP_USER_AGENT'),
@@ -223,19 +237,31 @@ class PrerenderMiddleware
         $protocol = $request->isSecure() ? 'https' : 'http';
         $host = $request->getHost();
         $path = $request->Path();
-        $url = $this->prerenderUri . '/' . urlencode($protocol.'://'.$host.'/'.$path);
+        $url = $this->prerenderHost . ':' . $this->prerenderPort . '/' . urlencode($protocol.'://'.$host.'/'.$path);
 
         $returnSoftHttpCodes = $this->returnSoftHttpCodes;
 
-        Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
+        $getPrerenderedPage = function($job) use ($returnSoftHttpCodes, $url, $headers) {
             $client = new Guzzle();
             if (!$returnSoftHttpCodes) {
                 $clientConfig = $client->getConfig();
                 $clientConfig['allow_redirects'] = false;
                 $client = new Guzzle($clientConfig);
             }
-            $client->get($url, $headers);
-        });
+
+            $response = $client->get($url, $headers);
+            if (!empty($job)) {
+                $job->delete();
+            }
+            return $response;
+        };
+
+        if ($immediately) {
+            return $this->buildSymfonyResponseFromGuzzleResponse($getPrerenderedPage(null));
+        }
+        else {
+            Queue::push($getPrerenderedPage);
+        }
     }
 
     /**
@@ -268,6 +294,21 @@ class PrerenderMiddleware
             }
         }
         return false;
+    }
+
+    private function isCrawlerUA($userAgent)
+    {
+        foreach ($this->crawlerUserAgents as $crawlerUserAgent) {
+            if (str_contains(strtolower($userAgent), strtolower($crawlerUserAgent))) {
+                return true;
+            }
+        }
+    }
+
+    private function setPortAndIsCrawlerFlag($request)
+    {
+        $this->isCrawler = $this->isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
+        $this->prerenderPort = $this->isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
     }
 
 }
