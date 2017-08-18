@@ -240,22 +240,7 @@ class PrerenderMiddleware
         $url = $this->prerenderHost . ':' . $this->prerenderPort . '/' . urlencode($protocol.'://'.$host.'/'.$path);
 
         $returnSoftHttpCodes = $this->returnSoftHttpCodes;
-
-        $getPrerenderedPage = function($job) use ($returnSoftHttpCodes, $url, $headers) {
-            $client = new Guzzle();
-            if (!$returnSoftHttpCodes) {
-                $clientConfig = $client->getConfig();
-                $clientConfig['allow_redirects'] = false;
-                $client = new Guzzle($clientConfig);
-            }
-
-            $response = $client->get($url, $headers);
-            if (!empty($job)) {
-                $job->delete();
-            }
-            return $response;
-        };
-
+        
         if ($immediately) {
             return $this->buildSymfonyResponseFromGuzzleResponse(self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
         }
