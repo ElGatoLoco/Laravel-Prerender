@@ -257,11 +257,26 @@ class PrerenderMiddleware
         };
 
         if ($immediately) {
-            return $this->buildSymfonyResponseFromGuzzleResponse($getPrerenderedPage(null));
+            return $this->buildSymfonyResponseFromGuzzleResponse(self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
         }
         else {
-            Queue::push($getPrerenderedPage);
+            Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
+                PrerenderMiddleware::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers);
+                $job->delete();
+            });
         }
+    }
+
+    public static function fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers)
+    {
+        $client = new Guzzle();
+        if (!$returnSoftHttpCodes) {
+            $clientConfig = $client->getConfig();
+            $clientConfig['allow_redirects'] = false;
+            $client = new Guzzle($clientConfig);
+        }
+
+        return $client->get($url, $headers);
     }
 
     /**
