@@ -92,6 +92,7 @@ class PrerenderMiddleware
      */
 
     private $isCrawler;
+    private static $cacheKey;
 
     /**
      * Creates a new PrerenderMiddleware instance
@@ -137,15 +138,14 @@ class PrerenderMiddleware
      */
     public function handle($request, Closure $next)
     {
-        $this->setPortAndIsCrawlerFlag($request);
+        $this->setCacheKeyPortAndIsCrawlerFlag($request);
 
         if ($this->shouldShowPrerenderedPage($request)) {
-            $key = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
 
-            if (!$this->isCrawler && Redis::exists($key)) {
+            if (!$this->isCrawler && Redis::exists(self::$cacheKey)) {
                 // can't serve pages to crawlers directly from cache
                 // because they still have script tags and prerender removes them
-                return Response::create(Redis::get($key));
+                return Response::create(Redis::get(self::$cacheKey));
             }
             else if ($this->isCrawler) {
                 return $this->getPrerenderedPageResponse($request, true);
@@ -252,7 +252,7 @@ class PrerenderMiddleware
         }
     }
 
-    public static function fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers)
+    public static function fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, $attempt = 1)
     {
         $client = new Guzzle();
         if (!$returnSoftHttpCodes) {
@@ -261,7 +261,16 @@ class PrerenderMiddleware
             $client = new Guzzle($clientConfig);
         }
 
-        return $client->get($url, $headers);
+        $response = $client->get($url, $headers);
+        if ($attempt <= 3 && !\Utility::pagePrerenderedProperly($response->getBody())) {
+            Redis::del(self::$cacheKey);
+            return self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, $attempt + 1);
+        } else {
+            if ($attempt > 3) {
+                \Log::info('NO CONTENT FOUND ON PAGE! URL: ' . $url);   // to be replaced with an error email
+            }
+            return $response;
+        }
     }
 
     /**
@@ -305,10 +314,11 @@ class PrerenderMiddleware
         }
     }
 
-    private function setPortAndIsCrawlerFlag($request)
+    private function setCacheKeyPortAndIsCrawlerFlag($request)
     {
         $this->isCrawler = $this->isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
         $this->prerenderPort = $this->isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
+        self::$cacheKey = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
     }
 
 }
