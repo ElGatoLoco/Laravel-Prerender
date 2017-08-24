@@ -321,7 +321,7 @@ class PrerenderMiddleware
 
     private function setRequestData($request)
     {
-        self::$isCrawler = self::$isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
+        self::$isCrawler = self::isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
         $this->prerenderPort = self::$isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
         self::$cacheKey = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
         self::$ip = $request->ip();
