@@ -91,8 +91,9 @@ class PrerenderMiddleware
      * Flag - is it a crawler accessing the page
      */
 
-    private $isCrawler;
+    private static $isCrawler;
     private static $cacheKey;
+    private static $ip;
 
     /**
      * Creates a new PrerenderMiddleware instance
@@ -138,16 +139,16 @@ class PrerenderMiddleware
      */
     public function handle($request, Closure $next)
     {
-        $this->setCacheKeyPortAndIsCrawlerFlag($request);
+        $this->setRequestData($request);
 
         if ($this->shouldShowPrerenderedPage($request)) {
 
-            if (!$this->isCrawler && Redis::exists(self::$cacheKey)) {
+            if (!self::$isCrawler && Redis::exists(self::$cacheKey)) {
                 // can't serve pages to crawlers directly from cache
                 // because they still have script tags and prerender removes them
                 return Response::create(Redis::get(self::$cacheKey));
             }
-            else if ($this->isCrawler) {
+            else if (self::$isCrawler) {
                 return $this->getPrerenderedPageResponse($request, true);
             }
             else {
@@ -183,7 +184,7 @@ class PrerenderMiddleware
         // prerender if _escaped_fragment_ is in the query string
         if ($request->query->has('_escaped_fragment_')) $isRequestingPrerenderedPage = true;
 
-        if ($this->isCrawler) {
+        if (self::$isCrawler) {
             $isRequestingPrerenderedPage = true;
         }
 
@@ -240,7 +241,7 @@ class PrerenderMiddleware
         $url = $this->prerenderHost . ':' . $this->prerenderPort . '/' . urlencode($protocol.'://'.$host.'/'.$path);
 
         $returnSoftHttpCodes = $this->returnSoftHttpCodes;
-        
+
         if ($immediately) {
             return $this->buildSymfonyResponseFromGuzzleResponse(self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
         }
@@ -267,7 +268,11 @@ class PrerenderMiddleware
             return self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, $attempt + 1);
         } else {
             if ($attempt > 3) {
-                \Log::info('NO CONTENT FOUND ON PAGE! URL: ' . $url);   // to be replaced with an error email
+                \EmailDispatcher::sendEmail('prerender_error', [
+                    'url' => self::$cacheKey,
+                    'is_crawler' => self::$isCrawler,
+                    'ip' => self::$ip,
+                ]);
             }
             return $response;
         }
@@ -314,11 +319,12 @@ class PrerenderMiddleware
         }
     }
 
-    private function setCacheKeyPortAndIsCrawlerFlag($request)
+    private function setRequestData($request)
     {
-        $this->isCrawler = $this->isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
-        $this->prerenderPort = $this->isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
+        self::$isCrawler = self::$isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
+        $this->prerenderPort = self::$isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
         self::$cacheKey = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
+        self::$ip = $request->ip();
     }
 
 }
