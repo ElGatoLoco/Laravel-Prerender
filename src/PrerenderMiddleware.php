@@ -267,7 +267,8 @@ class PrerenderMiddleware
             Redis::del(self::$cacheKey);
             return self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, $attempt + 1);
         } else {
-            if ($attempt > 3) {
+            if ($attempt > 3 && !\Utility::pagePrerenderedProperly($response->getBody())) {
+                Redis::del(self::$cacheKey);
                 \EmailDispatcher::sendEmail('prerender_error', [
                     'url' => self::$cacheKey,
                     'is_crawler' => self::$isCrawler,
