@@ -160,6 +160,7 @@ class PrerenderMiddleware
                 return $next($request);
             }
         }
+        return $next($request);
     }
 
     /**
