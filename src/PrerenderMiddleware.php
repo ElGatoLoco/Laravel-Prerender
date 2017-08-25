@@ -142,21 +142,24 @@ class PrerenderMiddleware
         $this->setRequestData($request);
 
         if ($this->shouldShowPrerenderedPage($request)) {
-
-            if (!self::$isCrawler && Redis::exists(self::$cacheKey)) {
-                // can't serve pages to crawlers directly from cache
-                // because they still have script tags and prerender removes them
-                return Response::create(Redis::get(self::$cacheKey));
+            try {
+                if (!self::$isCrawler && Redis::exists(self::$cacheKey)) {
+                    // can't serve pages to crawlers directly from cache
+                    // because they still have script tags and prerender removes them
+                    return $this->getPageFromCache($request);
+                }
+                else if (self::$isCrawler) {
+                    return $this->getPrerenderedPageResponse($request, true);
+                }
+                else {
+                    $this->getPrerenderedPageResponse($request, false);
+                    return $next($request);
+                }
             }
-            else if (self::$isCrawler) {
-                return $this->getPrerenderedPageResponse($request, true);
-            }
-            else {
-                $this->getPrerenderedPageResponse($request, false);
+            catch (\Exception $e) {
+                return $next($request);
             }
         }
-
-        return $next($request);
     }
 
     /**
@@ -217,6 +220,16 @@ class PrerenderMiddleware
 
         // Okay! Prerender please.
         return true;
+    }
+
+    private function getPageFromCache($request)
+    {
+        $html = Redis::get(self::$cacheKey);
+        if (!\Utility::pagePrerenderedProperly($html)) {  // if an improperly rendered page was cached for some reason
+            Redis::del(self::$cacheKey);
+            return $this->getPrerenderedPageResponse($request, false);
+        }
+        return Response::create($html);
     }
 
     /**
