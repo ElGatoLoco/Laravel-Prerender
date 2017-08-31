@@ -157,6 +157,9 @@ class PrerenderMiddleware
                 }
             }
             catch (\Exception $e) {
+                if (self::$isCrawler) {
+                    return $this->getPrerenderedPageResponse($request, true);
+                }
                 return $next($request);
             }
         }
