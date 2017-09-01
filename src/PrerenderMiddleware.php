@@ -280,6 +280,11 @@ class PrerenderMiddleware
         }
 
         $response = $client->get($url, $headers);
+
+        if (!$returnSoftHttpCodes && substr($response->getStatusCode(), 0, 1) === '3') {
+            return $response;
+        }
+
         if ($attempt <= 3 && !\Utility::pagePrerenderedProperly($response->getBody())) {
             Redis::del(self::$cacheKey);
             return self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, $attempt + 1);
@@ -292,6 +297,7 @@ class PrerenderMiddleware
                     'ip' => self::$ip,
                 ]);
             }
+
             return $response;
         }
     }
