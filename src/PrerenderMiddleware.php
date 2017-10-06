@@ -279,7 +279,13 @@ class PrerenderMiddleware
             $client = new Guzzle($clientConfig);
         }
 
-        $response = $client->get($url, $headers);
+        try {
+           $response = $client->get($url, $headers);
+       } catch (RequestException $exception) {
+           if(!$returnSoftHttpCodes && !empty($exception->getResponse()) && $exception->getResponse()->getStatusCode() == 404) {
+               \App::abort(404);
+           }
+       }
 
         if (!$returnSoftHttpCodes && substr($response->getStatusCode(), 0, 1) === '3') {
             return $response;
