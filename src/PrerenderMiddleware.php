@@ -282,8 +282,9 @@ class PrerenderMiddleware
         try {
            $response = $client->get($url, $headers);
        } catch (RequestException $exception) {
-           if(!$returnSoftHttpCodes && !empty($exception->getResponse()) && $exception->getResponse()->getStatusCode() == 404) {
-               \App::abort(404);
+           $response = $exception->getResponse();
+           if(!$returnSoftHttpCodes && !empty($response) && $response->getStatusCode() == 404) {
+             \App::abort(404);
            }
        }
 
