@@ -172,4 +172,6 @@
     */
 
     'whitelist_for_all_users' => [],
+
+    'keep_query_params' => []
 ];

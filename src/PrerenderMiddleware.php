@@ -96,6 +96,13 @@ class PrerenderMiddleware
     private static $ip;
 
     /**
+     * Query params that should be kept in the prerendered URL
+     *
+     * @var array
+     */
+    private $keepQueryParams;
+
+    /**
      * Creates a new PrerenderMiddleware instance
      *
      * @param Application $app
@@ -126,6 +133,7 @@ class PrerenderMiddleware
         $this->whitelist = $config['whitelist'];
         $this->blacklist = $config['blacklist'];
         $this->whitelistForAllUsers = !empty($config['whitelist_for_all_users']) ? $config['whitelist_for_all_users'] : [];
+        $this->keepQueryParams = $config['keep_query_params'];
     }
 
     /**
@@ -252,10 +260,7 @@ class PrerenderMiddleware
         }
         $headers = compact('headers');
 
-        $protocol = $request->isSecure() ? 'https' : 'http';
-        $host = $request->getHost();
-        $path = $request->Path();
-        $url = $this->prerenderHost . ':' . $this->prerenderPort . '/' . urlencode($protocol.'://'.$host.'/'.$path);
+        $url = $this->prerenderHost . ':' . $this->prerenderPort . '/' . urlencode($this->getUrlFromRequest($request));
 
         $returnSoftHttpCodes = $this->returnSoftHttpCodes;
 
@@ -354,8 +359,22 @@ class PrerenderMiddleware
     {
         self::$isCrawler = self::isCrawlerUA($request->server->get('HTTP_USER_AGENT'));
         $this->prerenderPort = self::$isCrawler ? $this->prerenderCrawlerPort : $this->prerenderUserPort;
-        self::$cacheKey = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
+        self::$cacheKey = $this->getUrlFromRequest($request);
         self::$ip = $request->ip();
+    }
+
+    private function getUrlFromRequest($request)
+    {
+        $url = ($request->isSecure() ? 'https' : 'http') . '://' . $request->getHost() . '/' . $request->Path();
+
+        $queryParams = $this->subArray($request->query(), $this->keepQueryParams);
+
+        return !empty($queryParams) ? ($url . '?' . http_build_query($queryParams)) : $url;
+    }
+
+    private function subArray(array $haystack, array $needle)
+    {
+        return array_intersect_key($haystack, array_flip($needle));
     }
 
 }
