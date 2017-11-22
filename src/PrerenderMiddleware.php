@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Redis;
 use QueuePusher\Queue;
 use AuthWrapper\Auth;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class PrerenderMiddleware
 {
@@ -269,7 +270,11 @@ class PrerenderMiddleware
         }
         else {
             Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
-                PrerenderMiddleware::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers);
+                try {
+                    PrerenderMiddleware::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers);
+                } catch (HttpException $e) {
+                    $job->delete();
+                }
                 $job->delete();
             });
         }
