@@ -272,9 +272,7 @@ class PrerenderMiddleware
             Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
                 try {
                     PrerenderMiddleware::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers);
-                } catch (HttpException $e) {
-                    $job->delete();
-                }
+                } catch (HttpException $e) {}
                 $job->delete();
             });
         }
