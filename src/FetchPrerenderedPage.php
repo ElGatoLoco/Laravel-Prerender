@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Nutsweb\LaravelPrerender\PrerenderMiddleware;
 
 class FetchPrerenderedPage implements ShouldQueue
 {
@@ -22,9 +23,8 @@ class FetchPrerenderedPage implements ShouldQueue
      * @param  Podcast  $podcast
      * @return void
      */
-    public function __construct($prerenderMiddleware, $returnSoftHttpCodes, $url, $headers)
+    public function __construct($returnSoftHttpCodes, $url, $headers)
     {
-        $this->prerenderMiddleware = $prerenderMiddleware;
         $this->returnSoftHttpCodes = $returnSoftHttpCodes;
         $this->url = $url;
         $this->headers = $headers;
@@ -38,7 +38,7 @@ class FetchPrerenderedPage implements ShouldQueue
     public function handle()
     {
         try {
-            $this->prerenderMiddleware($this->returnSoftHttpCodes, $this->url, $this->headers);
+            PrerenderMiddleware::fetchPrerenderedPage($this->returnSoftHttpCodes, $this->url, $this->headers);
         } catch (HttpException $e) {
             //
         } finally {
