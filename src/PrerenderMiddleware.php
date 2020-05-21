@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Redis;
 use QueuePusher\Queue;
 use AuthWrapper\Auth;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Nutsweb\Jobs\FetchPrerenderedPage;
 
 class PrerenderMiddleware
 {
@@ -270,12 +271,7 @@ class PrerenderMiddleware
             return $this->buildSymfonyResponseFromGuzzleResponse(self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
         }
         else {
-            Queue::push(function($job) use ($returnSoftHttpCodes, $url, $headers) {
-                try {
-                    PrerenderMiddleware::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers);
-                } catch (HttpException $e) {}
-                $job->delete();
-            });
+            Queue::push(new FetchPrerenderedPage($this, $returnSoftHttpCodes, $url, $headers));
         }
     }
 
