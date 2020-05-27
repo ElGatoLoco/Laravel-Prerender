@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Redis;
 use QueuePusher\Queue;
 use AuthWrapper\Auth;
 use Symfony\Component\HttpKernel\Exception\HttpException;
-use Nutsweb\Jobs\FetchPrerenderedPage;
+use Nutsweb\LaravelPrerender\FetchPrerenderedPage;
 
 class PrerenderMiddleware
 {

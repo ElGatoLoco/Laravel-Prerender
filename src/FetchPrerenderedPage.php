@@ -1,6 +1,6 @@
 <?php
 
-namespace Nutsweb\Jobs;
+namespace Nutsweb\LaravelPrerender;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
