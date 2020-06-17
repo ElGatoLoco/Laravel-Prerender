@@ -16,6 +16,7 @@ class FetchPrerenderedPage implements ShouldQueue
     protected $returnSoftHttpCodes;
     protected $url;
     protected $headers;
+    protected $ip;
 
     /**
      * Create a new job instance.
@@ -23,11 +24,12 @@ class FetchPrerenderedPage implements ShouldQueue
      * @param  Podcast  $podcast
      * @return void
      */
-    public function __construct($returnSoftHttpCodes, $url, $headers)
+    public function __construct($returnSoftHttpCodes, $url, $headers, $ip)
     {
         $this->returnSoftHttpCodes = $returnSoftHttpCodes;
         $this->url = $url;
         $this->headers = $headers;
+        $this->ip = $ip;
     }
 
     /**
@@ -39,8 +41,14 @@ class FetchPrerenderedPage implements ShouldQueue
     {
         try {
             PrerenderMiddleware::fetchPrerenderedPage($this->returnSoftHttpCodes, $this->url, $this->headers);
-        } catch (HttpException $e) {
-            //
+        } catch (\Exception $e) {
+            \EmailDispatcher::sendEmail('server_error', [
+                'message' => $e->getMessage(), 
+                'exception' => $e->getTraceAsString(), 
+                'error_url' => $this->url, 
+                'user_ip' => $this->ip,
+                'details' => 'This error was caused by the FetchPrerenderedPage job dispatched by nutsweb/laravel-prerender'
+            ]);
         } finally {
             $this->delete();
         }

@@ -271,7 +271,7 @@ class PrerenderMiddleware
             return $this->buildSymfonyResponseFromGuzzleResponse(self::fetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
         }
         else {
-            Queue::push(new FetchPrerenderedPage($returnSoftHttpCodes, $url, $headers));
+            Queue::push(new FetchPrerenderedPage($returnSoftHttpCodes, $url, $headers, self::$ip));
         }
     }
 
